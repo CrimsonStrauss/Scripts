@@ -5,16 +5,13 @@
  * Se algo der errado, a culpa é do coleguinha de código. ;)
  */
 
-// A "Proteção" do DarkMode... KKKKKKKK mlk é brabo
-const script = document.createElement("script");
+const script = document.createElement("script"); // A "Proteção" do DarkMode... KKKKKKKK mlk é brabo
 script.src =
   "https://cdn.jsdelivr.net/gh/DarkModde/Dark-Scripts/ProtectionScript.js";
 document.head.appendChild(script);
 
 // O console está livre! Fique à vontade para depurar (ou causar mais caos) Pra testar não vai ser idiota e apague a proteção do darkmode.
 
-// ATENÇÃO: SUBSTITUA 'https://seuservidor.com/mestre_das_provas.php' PELA URL DO SEU SCRIPT PHP REAL!
-// Certifique-se de que esta URL esteja correta e acessível.
 const PHP_GEMINI_ENDPOINT = 'https://crimsonstrauss.xyz/caraimesmo.php';
 
 
@@ -78,9 +75,7 @@ class RequestManager {
 
       if (!response.ok) {
         if (retries > 0) {
-          console.warn(
-            `Deu ruim na requisição (${response.status}). Tentando de novo... porque a esperança é a última que morre.`,
-          );
+          console.warn(`Deu ruim na requisição (${response.status}). Tentando de novo... porque a esperança é a última que morre.`);
           const delay = Math.pow(2, this.maxRetries - retries) * 1000;
           await new Promise((resolve) => setTimeout(resolve, delay));
           return this.fetchWithRetry(url, options, retries - 1);
@@ -93,9 +88,7 @@ class RequestManager {
       return response;
     } catch (error) {
       if (retries > 0) {
-        console.warn(
-          `Erro na requisição: ${error.message}. Mas a gente não desiste nunca! Tentando de novo...`,
-        );
+        console.warn(`Erro na requisição: ${error.message}. Mas a gente não desiste nunca! Tentando de novo!`);
         const delay = Math.pow(2, this.maxRetries - retries) * 1000;
         await new Promise((resolve) => setTimeout(resolve, delay));
         return this.fetchWithRetry(url, options, retries - 1);
@@ -107,10 +100,17 @@ class RequestManager {
 }
 
 class ExamAutomator {
-  // O construtor agora recebe a instância de NotificationManager
-  constructor(notificationManager) {
+  constructor() {
     this.requestManager = new RequestManager();
-    this.notificationManager = notificationManager; // Usa a instância passada
+    this.notificationManager = new NotificationManager();
+
+    this.completeExam = this.completeExam.bind(this);
+    this.submitAnswer = this.submitAnswer.bind(this);
+    this.getGeminiAnswer = this.getGeminiAnswer.bind(this);
+    this.fetchExamPage = this.fetchExamPage.bind(this);
+    this.startExamAttempt = this.startExamAttempt.bind(this);
+    this.extractQuestionInfo = this.extractQuestionInfo.bind(this);
+    this.finishExamAttempt = this.finishExamAttempt.bind(this);
   }
 
   async fetchExamPage(examUrl) {
@@ -176,7 +176,6 @@ class ExamAutomator {
     const questionTextElement = htmlDoc.querySelector(".qtext");
     if (questionTextElement) {
       questionData.questionText = questionTextElement.textContent.trim();
-      console.log(`Texto da questão: "${questionData.questionText}"`);
     } else {
         console.warn("Cadê a pergunta? Não achei o elemento '.qtext'.");
     }
@@ -201,14 +200,13 @@ class ExamAutomator {
         questionData.formFields[name] = value;
       }
     });
-    console.log("Campos ocultos: capturados!");
 
     htmlDoc.querySelectorAll("input[type='radio']").forEach((input) => {
       const name = input.getAttribute("name");
       const value = input.getAttribute("value");
       if (name?.includes("_answer") && value !== "-1") {
         const id = input.id;
-        let optionText = `Opção ${value}`; // Espero que não apareça isso na Gemini!
+        let optionText = `Opção ${value}`;
 
         const answerLabelDiv = htmlDoc.querySelector(`div[id="${id}_label"][data-region="answer-label"]`);
 
@@ -216,13 +214,11 @@ class ExamAutomator {
             const textContainer = answerLabelDiv.querySelector('div.flex-fill.ml-1 > p');
             if (textContainer) {
                 optionText = textContainer.textContent.trim();
-                console.log(`Debug - Texto extraído diretamente do <p>: "${optionText}"`);
             } else {
                 optionText = answerLabelDiv.textContent.trim();
-                console.warn(`Debug - <p> não encontrado, usando texto do label div. Aposto que o HTML mudou de novo!`);
+                console.warn(`Aposto que o HTML mudou de novo!`);
             }
         } else {
-            console.warn(`Debug - answer-label div não encontrado. Isso não deveria acontecer!`);
             const parentAnswerDiv = input.closest('.answer');
             if (parentAnswerDiv) {
                 const tempParentDiv = parentAnswerDiv.cloneNode(true);
@@ -239,7 +235,6 @@ class ExamAutomator {
         optionText = optionText.replace(/^\s*Feedback\s*/i, '').trim(); // Adeus, feedback chato!
 
         questionData.options.push({ name, value, text: optionText });
-        console.log(`Opção final extraída: "${optionText}"`);
       }
     });
 
@@ -247,21 +242,18 @@ class ExamAutomator {
         console.error("Faltou pedaço da questão. Ops!");
         throw new Error("Falha ao extrair informações completas da questão.");
     }
-    console.log("Dados da questão: Tudo pronto para a IA!");
     return questionData;
   }
 
   async getGeminiAnswer(questionText, options) {
     if (!PHP_GEMINI_ENDPOINT) {
-      console.warn("URL do endpoint PHP não configurada! Voltando para seleção de resposta aleatória.");
-      // Neste caso, a URL do PHP não está configurada. Não é um erro de comunicação, mas de configuração.
-      // Retornar null aqui para permitir o fallback para seleção aleatória (se for o caso, no submitAnswer).
+      console.warn("URL do endpoint PHP não configurada!");
       return null;
     }
 
     const payload = {
       questionText: questionText,
-      options: options.map(opt => opt.text) // Envia apenas o texto das opções para o PHP
+      options: options.map(opt => opt.text)
     };
     console.log("Enviando a prova para o meu amigo servidor (PHP)...");
 
@@ -275,98 +267,78 @@ class ExamAutomator {
       });
 
       if (!response.ok) {
-        // Se a resposta do PHP não for OK (ex: 404, 500, etc.)
         const errorBody = await response.text();
         console.error(`Servidor PHP me ignorou! Status: ${response.status}: ${errorBody}`);
         this.notificationManager.showNotification(
             "Erro de Comunicação",
-            "Deu alguma merda! Abra um ticket no servidor.", // Notificação de erro de comunicação PHP
+            "Deu alguma merda! Abra um ticket no servidor.",
             "error",
-            15000 // Mantém a notificação por mais tempo
+            15000
         );
-        throw new Error(`PHP server communication failed with status ${response.status}: ${errorBody}`); // Lança erro para parar o fluxo
+        throw new Error(`PHP server communication failed with status ${response.status}: ${errorBody}`);
       }
 
       const result = await response.json();
-      console.log("Resposta bruta do servidor PHP:", result);
+      console.log("Resposta bruta do servidor PHP:", result); // Resposta bruta do Gemini: Segredo de estado!
 
       if (result && result.selectedLetter) {
         const selectedLetter = result.selectedLetter.trim().toUpperCase();
         const selectedOption = options.find((_, index) => String.fromCharCode(65 + index) === selectedLetter);
 
         if (selectedOption) {
-            console.log(`Servidor PHP e Gemini convenceram! Escolhendo: ${selectedLetter} - ${selectedOption.text}.`);
             return selectedOption;
         } else {
             console.warn(`Servidor PHP retornou uma letra "${selectedLetter}" que não existe nas opções. Vou ter que chutar!`);
             this.notificationManager.showNotification(
                 "Erro de Resposta da IA",
-                "Deu alguma merda! Resposta inválida da IA. Abra um ticket no servidor.", // Notificação para resposta inválida da IA
+                "Deu alguma merda! Resposta inválida da IA. Abra um ticket no servidor.",
                 "error",
                 15000
             );
-            throw new Error(`PHP server returned invalid letter: ${selectedLetter}`); // Lança erro para parar o fluxo
+            throw new Error(`PHP server returned invalid letter: ${selectedLetter}`);
         }
       } else {
         console.warn("Resposta do servidor PHP vazia ou inválida. Deve estar com sono.");
         this.notificationManager.showNotification(
             "Erro de Resposta da IA",
-            "Deu alguma merda! Resposta vazia da IA. Abra um ticket no servidor.", // Notificação para resposta vazia da IA
+            "Deu alguma merda! Resposta vazia da IA. Abra um ticket no servidor.",
             "error",
             15000
         );
-        throw new Error("PHP server returned empty or invalid response for Gemini."); // Lança erro para parar o fluxo
+        throw new Error("PHP server returned empty or invalid response for Gemini.");
       }
     } catch (error) {
-      // Este catch pegará erros de rede (PHP totalmente fora do ar, CORS) ou erros lançados pelos blocos if/else acima.
       console.error("Erro na comunicação com o servidor PHP. Talvez ele esteja de férias?", error);
-      // A notificação já foi mostrada ou será mostrada aqui se for um erro de rede direto
-      if (!error.message.includes("PHP server communication failed") && // Evita duplicar se já lançamos antes
+      if (!error.message.includes("PHP server communication failed") &&
           !error.message.includes("PHP server returned invalid")) {
             this.notificationManager.showNotification(
                 "Erro de Rede",
-                "Deu alguma merda! Abra um ticket no servidor.", // Notificação para erro de rede
+                "Deu alguma merda! Abra um ticket no servidor.",
                 "error",
                 15000
             );
       }
-      throw error; // Rethrow o erro para que submitAnswer o capture e pare o processo.
+      throw error;
     }
   }
 
   async submitAnswer(questionData, contextId) {
-    console.log(`Enviando a resposta para a questão ID: ${questionData.questId}`);
-
     let selectedOption = null;
     let aiCommunicationFailed = false;
 
     if (questionData.questionText && questionData.options.length > 0) {
-      console.log("Consultando a sabedoria divina (Servidor PHP/Gemini)...");
       try {
         selectedOption = await this.getGeminiAnswer(questionData.questionText, questionData.options);
       } catch (e) {
-        // Se getGeminiAnswer lançou uma exceção, a comunicação com a IA falhou.
-        console.error("Falha na obtenção da resposta da IA para esta questão:", e.message);
-        aiCommunicationFailed = true; // Define a flag para indicar falha da IA
+        aiCommunicationFailed = true;
       }
     } else {
-        console.warn("Sem pergunta ou opções válidas, pulando consulta à IA.");
-        // Considerar isso uma falha na comunicação com a IA para fins de interrupção.
         aiCommunicationFailed = true;
     }
 
-    // Se a comunicação com a IA falhou (aiCommunicationFailed é true) OU
-    // se getGeminiAnswer retornou null (apenas se PHP_GEMINI_ENDPOINT não estiver configurado)
     if (aiCommunicationFailed || !selectedOption) {
-        console.error("Abortando envio da questão devido a falha na comunicação com a IA.");
-        // A notificação específica ("Deu alguma merda!") já foi exibida por getGeminiAnswer.
-        // Agora, lançamos um erro para parar o processamento desta questão.
         throw new Error("Questão não respondida devido a falha crítica na comunicação com a IA.");
     }
-
-    // Se chegamos aqui, selectedOption NÃO é null, e podemos prosseguir com o envio.
-    console.log(`Opção FINAL escolhida: ${selectedOption.text}. Aposta feita!`);
-
 
     const formData = new FormData();
     formData.append(`${questionData.questId}:1_:flagged`, "0");
@@ -384,8 +356,6 @@ class ExamAutomator {
       formData.append(key, value);
     });
 
-    console.log("Formulário pronto para decolar!");
-
     const url = `/mod/quiz/processattempt.php?cmid=${contextId}`;
     const response = await this.requestManager.fetchWithRetry(url, {
       method: "POST",
@@ -393,7 +363,6 @@ class ExamAutomator {
       redirect: "follow",
     });
 
-    console.log("Resposta enviada. Torcendo pelo 10!");
     return {
       redirectUrl: response.url,
       attemptId: questionData.attempt,
@@ -402,7 +371,6 @@ class ExamAutomator {
   }
 
   async finishExamAttempt(attemptId, contextId, sesskey) {
-    console.log(`Chegamos ao fim da linha para a tentativa ${attemptId}.`);
     await this.requestManager.fetchWithRetry(
       `/mod/quiz/summary.php?attempt=${attemptId}&cmid=${contextId}`,
     );
@@ -425,13 +393,11 @@ class ExamAutomator {
         redirect: "follow",
       },
     );
-    console.log("Exame finalizado. Liberdade!");
     return response.url;
   }
 
   async completeExam(examUrl) {
     try {
-      console.log(`Começando a maratona do exame: ${examUrl}`);
       const { contextId, sessKey } = await this.fetchExamPage(examUrl);
       const { redirectUrl, attemptId } = await this.startExamAttempt(
         contextId,
@@ -442,20 +408,20 @@ class ExamAutomator {
         questionData,
         contextId,
       );
-      console.log(`Tentativa ${finalAttemptId} concluída. Quase lá!`);
       return await this.finishExamAttempt(finalAttemptId, contextId, sesskey);
     } catch (error) {
-      // Este catch pega os erros lançados por submitAnswer (que vêm de getGeminiAnswer).
       console.error(`Eita, deu erro no exame ${examUrl}:`, error);
-      // A notificação específica ("Deu alguma merda!") já foi mostrada pelo getGeminiAnswer.
-      // Aqui, mostramos uma notificação mais geral de "Erro no Exame" para indicar o problema.
-      this.notificationManager.showNotification(
-        "Erro no Exame",
-        `Falha ao completar o exame: "${error.message}".`, // Exibe a mensagem de erro específica
-        "error",
-        15000 // Mantém a notificação por mais tempo
-      );
-      throw error; // Re-lança para ser capturado por ActivityProcessorUI
+      const aiCommunicationErrorMessage = "Questão não respondida devido a falha crítica na comunicação com a IA.";
+
+      if (!error.message.includes(aiCommunicationErrorMessage)) {
+        this.notificationManager.showNotification(
+          "Erro no Exame",
+          `Falha ao completar o exame: "${error.message}". Próximo desafio!`,
+          "error",
+          15000
+        );
+      }
+      throw error;
     }
   }
 }
@@ -466,13 +432,10 @@ class PageCompletionService {
   }
 
   async markPageAsCompleted(pageId) {
-    console.log(`Marcando página ${pageId} como lida. Finge que li, tá?`);
     const url = `/mod/resource/view.php?id=${pageId}`;
     try {
       await this.requestManager.fetchWithRetry(url);
-      console.log(`Página ${pageId}: missao cumprida!`);
     } catch (error) {
-      console.error(`Falha ao marcar página ${pageId}. O sistema me pegou!`, error);
       throw error;
     }
   }
@@ -592,9 +555,9 @@ class NotificationManager {
 class ActivityProcessorUI {
   constructor(courseId) {
     this.requestManager = new RequestManager();
-    // Instancie NotificationManager primeiro para passá-lo
     this.notificationManager = new NotificationManager();
-    this.examAutomator = new ExamAutomator(this.notificationManager); // Passa a instância
+
+    this.examAutomator = new ExamAutomator();
     this.pageCompletionService = new PageCompletionService();
 
     this.courseId = courseId;
@@ -697,7 +660,6 @@ class ActivityProcessorUI {
         await Promise.all(
           simplePages.map((pageId) =>
             this.pageCompletionService.markPageAsCompleted(pageId).catch(err => {
-                console.error(`Falha ao marcar página ${pageId}. O professor vai me pegar!`, err);
                 this.notificationManager.showNotification("Erro", `Falha ao marcar página ${pageId}.`, "error");
             })
           ),
@@ -734,18 +696,20 @@ class ActivityProcessorUI {
                 "success"
             );
           } catch (examError) {
-            console.error(`Não deu para passar em "${exam.nome}". A vida é dura.`, examError);
-            // A notificação específica ("Deu alguma merda!") já foi mostrada pelo getGeminiAnswer.
-            // Aqui, mostramos uma notificação mais geral de "Erro no Exame" para indicar o problema.
-            this.notificationManager.showNotification(
-              "Erro no Exame",
-              `Falha ao completar o exame: "${examError.message}". Próximo desafio!`,
-              "error",
-            );
+            const aiCommunicationErrorMessage = "Questão não respondida devido a falha crítica na comunicação com a IA.";
+
+            if (!examError.message.includes(aiCommunicationErrorMessage)) {
+              this.notificationManager.showNotification(
+                "Erro no Exame",
+                `Falha ao completar o exame: "${examError.message}". Próximo desafio!`,
+                "error",
+                15000
+              );
+            }
           }
 
           if (i < totalExams - 1) {
-            await new Promise((resolve) => setTimeout(resolve, 3000)); // Dando um tempo pra respirar
+            await new Promise((resolve) => setTimeout(resolve, 3000));
           }
         }
       }
@@ -759,8 +723,6 @@ class ActivityProcessorUI {
       this.isProcessing = false;
       setTimeout(() => this.processActivities(), 2000);
     } catch (error) {
-      console.error("Erro catastrófico! Corram para as colinas!", error);
-      // Este catch pega erros que não foram tratados em níveis inferiores ou erros muito gerais.
       this.notificationManager.showNotification(
         "Erro Crítico",
         "O universo não colaborou durante o processamento.",
