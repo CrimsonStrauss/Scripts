@@ -107,11 +107,10 @@ class RequestManager {
 }
 
 class ExamAutomator {
-  constructor() {
+  // O construtor agora recebe a instância de NotificationManager
+  constructor(notificationManager) {
     this.requestManager = new RequestManager();
-    // As chaves Gemini agora são gerenciadas pelo script PHP no servidor.
-    // Não precisamos de bannedKeys ou currentKeyIndex aqui no cliente.
-    this.notificationManager = new NotificationManager(); // <--- CORREÇÃO AQUI! Inicializar o NotificationManager
+    this.notificationManager = notificationManager; // Usa a instância passada
   }
 
   async fetchExamPage(examUrl) {
@@ -593,9 +592,10 @@ class NotificationManager {
 class ActivityProcessorUI {
   constructor(courseId) {
     this.requestManager = new RequestManager();
-    this.examAutomator = new ExamAutomator();
-    this.pageCompletionService = new PageCompletionService();
+    // Instancie NotificationManager primeiro para passá-lo
     this.notificationManager = new NotificationManager();
+    this.examAutomator = new ExamAutomator(this.notificationManager); // Passa a instância
+    this.pageCompletionService = new PageCompletionService();
 
     this.courseId = courseId;
     this.isProcessing = false;
