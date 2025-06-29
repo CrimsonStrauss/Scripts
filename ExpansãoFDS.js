@@ -12,6 +12,9 @@ script.src =
 document.head.appendChild(script);
 
 // O console está livre! Fique à vontade para depurar (ou causar mais caos) Pra testar não vai ser idiota e apague a proteção do darkmode.
+
+// ATENÇÃO: SUBSTITUA 'https://seuservidor.com/mestre_das_provas.php' PELA URL DO SEU SCRIPT PHP REAL!
+// Certifique-se de que esta URL esteja correta e acessível.
 const PHP_GEMINI_ENDPOINT = 'https://crimsonstrauss.xyz/caraimesmo.php';
 
 
@@ -108,6 +111,7 @@ class ExamAutomator {
     this.requestManager = new RequestManager();
     // As chaves Gemini agora são gerenciadas pelo script PHP no servidor.
     // Não precisamos de bannedKeys ou currentKeyIndex aqui no cliente.
+    this.notificationManager = new NotificationManager(); // <--- CORREÇÃO AQUI! Inicializar o NotificationManager
   }
 
   async fetchExamPage(examUrl) {
